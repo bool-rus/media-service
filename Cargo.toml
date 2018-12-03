@@ -1,0 +1,11 @@
+[package]
+name = "media-service"
+version = "0.0.0"
+authors = ["Баринов Сергей Владимирович <bool.rus@gmail.com>"]
+
+[dependencies]
+actix-web = "0.7"
+bip_metainfo = "0.10"
+futures = "0.1"
+bytes = "0.4"
+futures-fs = "*"
