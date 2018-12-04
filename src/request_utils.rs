@@ -2,12 +2,10 @@ extern crate http;
 
 use futures::{Future, Stream};
 use futures::future;
-use actix_web::{HttpRequest, HttpMessage, Error};
+use actix_web::{error,HttpRequest, HttpMessage, Error};
+use actix_web::multipart::{MultipartItem, Multipart};
 use bytes::*;
-use actix_web::error;
-use actix_web::multipart::MultipartItem;
 use self::http::header;
-use actix_web::multipart::Multipart;
 
 /**
   почему-то в IDE не работает автокомплит после collect
