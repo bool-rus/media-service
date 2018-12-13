@@ -4,6 +4,9 @@ extern crate bytes;
 extern crate futures_fs;
 extern crate futures;
 extern crate uuid;
+extern crate failure;
+#[macro_use]
+extern crate failure_derive;
 
 mod request_utils;
 mod storage;
@@ -18,12 +21,10 @@ use actix_web::{
     HttpResponse,
     Responder,
     http::Method,
-    dev::Handler,
 };
-use futures::{Future, Stream,};
+use futures::{Future, Stream};
 use bip_metainfo::MetainfoFile;
-use storage::Buffer;
-use storage::Sharing;
+use storage::CachedSink;
 
 
 fn index(_req: &HttpRequest) -> impl Responder {
@@ -49,17 +50,17 @@ fn upload_torrent(req: HttpRequest) -> FutureResponse<HttpResponse> {
             let file_name = Uuid::new_v4().to_string();
             request_utils::invoke_request_data(&req)
                 .forward(
-                    Buffer::new(size)
-                        .share(storage::make_writer(file_name.to_string())) //неявный Clone
-                        .sink_map_err(Into::<Error>::into)
+                    CachedSink::new(
+                        storage::make_writer(file_name.to_string()), //to_string - неявный clone
+                        size,
+                    )
                 )
                 .and_then(move |(_, sink)| {
-                    let buffer = sink.into_inner().first;
-                    let bytes = buffer.as_ref();
+                    let bytes = sink.as_ref();
                     let metainfo = MetainfoFile::from_bytes(bytes).unwrap();
                     let files: Vec<_> = metainfo.info().files()
                         .filter_map(|it| it.path().to_str()).collect();
-                    let res = HttpResponse::Ok().body(file_name +"\n"+ files.join("\n").as_ref());
+                    let res = HttpResponse::Ok().body(file_name + "\n" + files.join("\n").as_ref());
                     Ok(res.into())
                 }).responder()
         }
