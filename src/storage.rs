@@ -79,6 +79,6 @@ mod test {
 
     #[test]
     fn from_cached_to_atix() {
-        actix_web::Error::from(CachedSinkError);
+        actix_web::Error::from(Into::<failure::Error>::into(CachedSinkError));
     }
 }
