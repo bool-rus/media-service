@@ -1,15 +1,19 @@
 extern crate actix_web;
 extern crate bip_metainfo;
+extern crate bip_util;
 extern crate bytes;
 extern crate futures_fs;
 extern crate futures;
 extern crate uuid;
+extern crate hex;
 extern crate failure;
-#[macro_use]
-extern crate failure_derive;
+
+#[macro_use] extern crate failure_derive;
+#[macro_use] extern crate serde_derive;
 
 mod request_utils;
 mod storage;
+mod response;
 
 use actix_web::{
     Error,
@@ -25,6 +29,7 @@ use actix_web::{
 use futures::{Future, Stream};
 use bip_metainfo::MetainfoFile;
 use storage::CachedSink;
+use response::TorrentFile;
 
 
 fn index(_req: &HttpRequest) -> impl Responder {
@@ -58,10 +63,11 @@ fn upload_torrent(req: HttpRequest) -> FutureResponse<HttpResponse> {
                 .and_then(move |(_, sink)| {
                     let bytes = sink.as_ref();
                     let metainfo = MetainfoFile::from_bytes(bytes).unwrap();
-                    let files: Vec<_> = metainfo.info().files()
-                        .filter_map(|it| it.path().to_str()).collect();
-                    let res = HttpResponse::Ok().body(file_name + "\n" + files.join("\n").as_ref());
-                    Ok(res.into())
+                    let response = TorrentFile::from(&metainfo);
+                    match serde_json::to_string(&response) {
+                        Ok(body) => Ok(HttpResponse::Ok().body(body).into()),
+                        Err(e) => unimplemented!(),
+                    }
                 }).responder()
         }
     }
