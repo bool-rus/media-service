@@ -14,6 +14,7 @@ extern crate failure;
 mod request_utils;
 mod storage;
 mod response;
+mod torrent;
 
 use actix_web::{
     server,
