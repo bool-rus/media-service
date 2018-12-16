@@ -16,7 +16,6 @@ mod storage;
 mod response;
 
 use actix_web::{
-    Error,
     server,
     App,
     AsyncResponder,
@@ -50,7 +49,6 @@ fn upload_torrent(req: HttpRequest) -> FutureResponse<HttpResponse> {
     match request_utils::invoke_body_size(&req) {
         Err(err) => futures::failed(err).responder(),
         Ok(size) => {
-            use futures::sink::Sink;
             use uuid::Uuid;
             let file_name = Uuid::new_v4().to_string();
             request_utils::invoke_request_data(&req)
@@ -66,7 +64,7 @@ fn upload_torrent(req: HttpRequest) -> FutureResponse<HttpResponse> {
                     let response = TorrentFile::from(&metainfo);
                     match serde_json::to_string(&response) {
                         Ok(body) => Ok(HttpResponse::Ok().body(body).into()),
-                        Err(e) => unimplemented!(),
+                        Err(_e) => unimplemented!(),
                     }
                 }).responder()
         }

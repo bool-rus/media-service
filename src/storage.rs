@@ -3,8 +3,6 @@ use futures::Sink;
 use futures::AsyncSink;
 use futures::Async;
 use bytes::*;
-use std::fmt::{Display, Formatter, Result as FmtResult};
-use std::marker::PhantomData;
 use futures_fs::FsWriteSink;
 use std::error::Error;
 

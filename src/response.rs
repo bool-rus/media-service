@@ -1,5 +1,4 @@
 use bip_metainfo::MetainfoFile;
-use bip_util::bt::INFO_HASH_LEN;
 
 #[derive(Serialize, Deserialize)]
 pub struct TorrentFile {
