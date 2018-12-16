@@ -2,6 +2,10 @@ use futures::Stream;
 use bytes::Bytes;
 use futures::Async;
 
+#[derive(Debug,Fail)]
+#[fail(display="{}",0)]
+pub struct TorrentError(pub String);
+
 pub trait TorrentClient {
     fn download() -> SizedStream;
     fn download_file(num: usize) -> SizedStream;
