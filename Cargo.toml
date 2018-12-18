@@ -9,8 +9,6 @@ default = ["sha1/std", "failure/std"]
 [dependencies]
 actix-web = "0.7"
 bip_metainfo = "0.10"
-bip_util = "0.5"
-bip_utracker = "0.4"
 futures = "0.1"
 bytes = "0.4"
 futures-fs = "*"
@@ -23,3 +21,4 @@ failure_derive = "0.1"
 serde = "1.0"
 serde_derive = "1.0"
 serde_json = "1.0"
+percent_encoding = {version="1.0", package="percent-encoding"}

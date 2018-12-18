@@ -7,8 +7,8 @@ use futures::Async;
 pub struct TorrentError(pub String);
 
 pub trait TorrentClient {
-    fn download() -> SizedStream;
-    fn download_file(num: usize) -> SizedStream;
+    fn download(&mut self) -> SizedStream;
+    fn download_file(&mut self, num: usize) -> SizedStream;
 }
 
 pub struct SizedStream {
@@ -17,14 +17,14 @@ pub struct SizedStream {
 }
 
 impl SizedStream {
-    fn new<S>(size: usize, stream: S) -> Self
+    pub fn new<S>(size: usize, stream: S) -> Self
         where S: Stream<Item=Bytes,Error=failure::Error> + 'static {
         SizedStream {
             size,
             stream: Box::new(stream)
         }
     }
-    fn size(&self) -> usize {
+    pub fn size(&self) -> usize {
         self.size
     }
 }
