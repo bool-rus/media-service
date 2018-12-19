@@ -1,3 +1,5 @@
+extern crate bencoders;
+extern crate nom;
 mod faces;
 mod implement;
 mod tracker;
