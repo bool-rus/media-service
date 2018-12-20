@@ -1,6 +1,5 @@
 extern crate actix_web;
 extern crate bip_metainfo;
-extern crate bip_util;
 extern crate bytes;
 extern crate futures_fs;
 extern crate futures;
@@ -10,10 +9,12 @@ extern crate failure;
 
 #[macro_use] extern crate failure_derive;
 #[macro_use] extern crate serde_derive;
+#[macro_use] extern crate display_derive;
 
 mod request_utils;
 mod storage;
 mod response;
+mod torrent;
 
 use actix_web::{
     server,
@@ -29,6 +30,7 @@ use futures::{Future, Stream};
 use bip_metainfo::MetainfoFile;
 use storage::CachedSink;
 use response::TorrentFile;
+use actix_web::Body;
 
 
 fn index(_req: &HttpRequest) -> impl Responder {
@@ -71,12 +73,30 @@ fn upload_torrent(req: HttpRequest) -> FutureResponse<HttpResponse> {
     }
 }
 
+fn download(req: HttpRequest) -> FutureResponse<HttpResponse> {
+    let hash = req.query().get("hash").unwrap().to_string();
+    use torrent::*;
+    storage::read(hash)
+        .from_err()
+        .map(|bytes| MetainfoFile::from_bytes(bytes).unwrap()) //result -to future
+        .and_then(move |meta | {
+            let mut client = torrent::new_client(meta);
+            let body = Box::new(client.download().from_err());
+
+            Ok(req.build_response(Default::default())
+                .chunked()
+                .body(Body::Streaming(body)).into())
+        })
+        .responder()
+}
+
 fn main() {
     server::new(||
         vec![
             App::new()
                 .resource("/", |r| r.f(index))
                 .route("/torrent", Method::POST, upload_torrent)
+                .route("/torrent/download", Method::GET, download)
         ])
         .bind("127.0.0.1:8088")
         .unwrap()
