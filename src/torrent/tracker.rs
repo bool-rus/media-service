@@ -3,8 +3,8 @@ use super::nom::IResult;
 use std::net::IpAddr;
 use bytes::Bytes;
 use std::collections::HashMap;
+use super::HashString;
 
-type HashString = [u8; 20];
 const ADDR_BYTES: usize = 4;
 const PORT_BYTES: usize = 2; //note that port is u16, @see invoke_port
 const PEER_BYTES: usize = ADDR_BYTES + PORT_BYTES;
