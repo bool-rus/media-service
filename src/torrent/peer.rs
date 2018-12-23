@@ -3,16 +3,66 @@ use bytes::{Bytes, BytesMut, BufMut};
 
 type TorrentExtentions = [u8;8];
 
-struct Bitfield;
+const SIZE_BYTES: usize = 4;
+const PORT_BYTES: usize = 2;
 
-impl Bitfield {
-    fn bytes(&self) -> &[u8] {
-        unimplemented!()
+trait Bitfield {
+    fn empty(count: u32) -> Self;
+    fn full(count: u32) -> Self;
+    fn add_bit(&mut self, index: u32);
+    fn remove_bit(&mut self, index: u32);
+}
+
+impl Bitfield for Vec<u8> {
+
+    fn empty(blocks_count: u32) -> Self {
+        let mut capacity = blocks_count/8;
+        if blocks_count%8 != 0 {
+            capacity += 1;
+        }
+        let mut ret = Vec::with_capacity(capacity as usize);
+        for _ in 0..capacity {
+            ret.push(0u8);
+        }
+        ret
+    }
+
+    fn full(blocks_count: u32) -> Self {
+        let mut overhead = blocks_count%8;
+        if overhead > 0 {
+            overhead = 8 - overhead;
+        }
+        let mut capacity = blocks_count/8;
+        if overhead > 0 {
+            capacity += 1;
+        }
+
+        let mut ret = Vec::with_capacity(capacity as usize);
+        for i in 1..capacity { //все, кроме последнего
+            ret.push(0xffu8);
+        }
+        ret.push(0xffu8 << overhead);
+        ret
+    }
+
+    fn add_bit(&mut self, index: u32) {
+        let byte_index = (index/8) as usize;
+        let offset = index%8;
+        let mask = 1u8 <<  7 - offset;
+        let byte = self.get_mut(byte_index).unwrap();
+        *byte = *byte | mask;
+    }
+
+    fn remove_bit(&mut self, index: u32) {
+        let byte_index = (index/8) as usize;
+        let offset = index%8;
+        let mask = 1u8 << 7 - offset; //00010000
+        let mask = 0xffu8 ^ mask; //11101111
+        let byte = self.get_mut(byte_index).unwrap();
+        *byte = *byte & mask;
     }
 }
 
-const SIZE_BYTES: usize = 4;
-const PORT_BYTES: usize = 2;
 
 pub struct Handshake {
     protocol: String,
@@ -43,7 +93,7 @@ pub enum PeerMessage {
     Interested,
     NotInterested,
     Have(u32),
-    Bitfield(Bitfield),
+    Bitfield(Vec<u8>),
     Request {
         block: u32,
         offset: u32,
@@ -88,7 +138,7 @@ impl Into<Bytes> for PeerMessage { //TODO: может, лучше в Stream?
                 ret.into()
             },
             PeerMessage::Bitfield(bitfield) => {
-                let body = bitfield.bytes();
+                let body: &[u8] = bitfield.as_ref();
                 let size = 1 + body.len();
                 let mut ret = BytesMut::with_capacity(size + SIZE_BYTES);
                 ret.put_u32_be(size as u32);
@@ -140,7 +190,7 @@ impl Into<Bytes> for PeerMessage { //TODO: может, лучше в Stream?
 
 #[cfg(test)]
 mod test {
-    use super::PeerMessage;
+    use super::*;
     use bytes::Bytes;
 
     #[test]
@@ -161,5 +211,28 @@ mod test {
     fn test_simple_messages() {
         let bytes: Bytes = PeerMessage::Have(0x342f21cc).into();
         assert_eq!([0u8,0,0,5,b'4',0x34,0x2f,0x21,0xcc].as_ref(), bytes.as_ref());
+    }
+
+    #[test]
+    fn test_bit_ops() {
+        let offset = 1%8;
+        let mask = 1u8 << 7-offset;
+        assert_eq!(0b01000000, mask);
+        let mask = 0xffu8 ^ mask;
+        assert_eq!(0b10111111, mask);
+    }
+
+    #[test]
+    fn test_bitfield() {
+        let mut bitfield = Vec::full(16);
+        assert_eq!([0b11111111,0b11111111].as_ref(), bitfield.bytes());
+        let mut bitfield = Vec::full(19);
+        assert_eq!([0b11111111,0b11111111,0b11100000].as_ref(), bitfield.bytes());
+        bitfield.remove_bit(10); //помним, что нумерация с нуля
+        assert_eq!([255u8,0b11011111,0b11100000], bitfield.bytes());
+        let mut bitfield = Vec::empty(20);
+        assert_eq!([0u8,0,0], bitfield.as_ref());
+        bitfield.add_bit(15);
+        assert_eq!([0u8,1,0], bitfield.as_ref());
     }
 }
