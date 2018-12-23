@@ -40,7 +40,8 @@ pub enum PeerMessage {
     KeepAlive,
     Choke,
     Unchoke,
-    Interested(bool),
+    Interested,
+    NotInterested,
     Have(u32),
     Bitfield(Bitfield),
     Request {
@@ -76,13 +77,8 @@ impl Into<Bytes> for PeerMessage { //TODO: может, лучше в Stream?
             PeerMessage::KeepAlive => Bytes::from([0u8,0u8,0u8,0u8].as_ref()),
             PeerMessage::Choke => make_empty_message(b'0'),
             PeerMessage::Unchoke => make_empty_message(b'1'),
-            PeerMessage::Interested(interested) => {
-                if interested {
-                    make_empty_message(b'2')
-                } else {
-                    make_empty_message(b'3')
-                }
-            },
+            PeerMessage::Interested => make_empty_message(b'2'),
+            PeerMessage::NotInterested => make_empty_message(b'3'),
             PeerMessage::Have(index) => {
                 let size = 1 + SIZE_BYTES;
                 let mut ret = BytesMut::with_capacity(size + SIZE_BYTES);
@@ -139,5 +135,31 @@ impl Into<Bytes> for PeerMessage { //TODO: может, лучше в Stream?
                 ret.into()
             },
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::PeerMessage;
+    use bytes::Bytes;
+
+    #[test]
+    fn test_empty_messages() {
+        let bytes: Bytes = PeerMessage::KeepAlive.into();
+        assert_eq!([0u8,0,0,0].as_ref(), bytes.as_ref());
+        let bytes: Bytes = PeerMessage::Choke.into();
+        assert_eq!([0u8,0,0,1,b'0'].as_ref(), bytes.as_ref());
+        let bytes: Bytes = PeerMessage::Unchoke.into();
+        assert_eq!([0u8,0,0,1,b'1'].as_ref(), bytes.as_ref());
+        let bytes: Bytes = PeerMessage::Interested.into();
+        assert_eq!([0u8,0,0,1,b'2'].as_ref(), bytes.as_ref());
+        let bytes: Bytes = PeerMessage::NotInterested.into();
+        assert_eq!([0u8,0,0,1,b'3'].as_ref(), bytes.as_ref());
+    }
+
+    #[test]
+    fn test_simple_messages() {
+        let bytes: Bytes = PeerMessage::Have(0x342f21cc).into();
+        assert_eq!([0u8,0,0,5,b'4',0x34,0x2f,0x21,0xcc].as_ref(), bytes.as_ref());
     }
 }
