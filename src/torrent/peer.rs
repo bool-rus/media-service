@@ -86,7 +86,7 @@ impl Bitfield for Vec<u8> {
     }
 }
 
-
+#[derive(Clone, Debug, PartialEq)]
 pub struct Handshake {
     protocol: String,
     extentions: TorrentExtentions,
@@ -99,8 +99,7 @@ impl Into<Bytes> for Handshake {
         let protocol = self.protocol.as_bytes();
         let size = protocol.len() + self.extentions.len() + self.info_hash.len() + self.peer_id.len();
         let mut ret = BytesMut::with_capacity(SIZE_BYTES + size);
-        let size = size as u32;
-        ret.put_u32_be(size);
+        ret.put_u8(protocol.len() as u8);
         ret.put(protocol);
         ret.put(self.extentions.as_ref());
         ret.put(self.info_hash.as_ref());
@@ -213,6 +212,47 @@ impl Into<Bytes> for PeerMessage {
     }
 }
 
+mod parser {
+    use super::*;
+    use nom::be_u32;
+    use nom::be_u8;
+    use std::str;
+    use nom::IResult;
+    named!(parseHandshake<Handshake>,
+        chain!(
+            size: be_u8 ~
+            protocol: take!(size) ~
+            ext: take!(8) ~
+            info: take!(20) ~
+            peer: take!(20),
+            || {
+                let protocol = str::from_utf8(protocol).unwrap().to_string(); //TODO: как тут грамотно вернуть Error?
+                let mut extentions: [u8;8] = Default::default();
+                extentions.copy_from_slice(ext);
+                let mut info_hash: HashString = Default::default();
+                info_hash.copy_from_slice(info);
+                let mut peer_id: HashString = Default::default();
+                peer_id.copy_from_slice(peer);
+
+                Handshake{protocol, extentions, info_hash, peer_id}
+            }
+        )
+    );
+
+    #[test]
+    fn test_parse_handshake() {
+        let x = Handshake {
+            protocol: "bugoga".to_string(),
+            extentions: [1u8, 2, 3, 4, 5, 6, 7, 8],
+            info_hash: [1u8, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
+            peer_id: [20u8, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1],
+        };
+        let bytes: Bytes = x.clone().into();
+        let handshake = parseHandshake(bytes.as_ref());
+        assert_eq!(IResult::Done(b"".as_ref(), x), handshake)
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -250,9 +290,9 @@ mod test {
     #[test]
     fn test_bitfield() {
         let mut bitfield = Vec::full(16);
-        assert_eq!([0b11111111, 0b11111111].as_ref(), bitfield.as_ref());
+        assert_eq!([0b11111111, 0b11111111], bitfield.as_ref());
         let mut bitfield = Vec::full(19);
-        assert_eq!([0b11111111, 0b11111111, 0b11100000].as_ref(), bitfield.as_ref());
+        assert_eq!([0b11111111, 0b11111111, 0b11100000], bitfield.as_ref());
         bitfield.remove_bit(10); //помним, что нумерация с нуля
         assert_eq!([255u8, 0b11011111, 0b11100000], bitfield.as_ref());
         let mut bitfield = Vec::empty(20);
@@ -262,7 +302,6 @@ mod test {
 
         let a = vec![0b00000000u8, 0b00011100, 0b11100011];
         let b = vec![0b11100011u8, 0b00011100, 0b00111001];
-        assert_eq!(      vec![0b11100011u8, 0b00000000, 0b00011010], a.interest(b).unwrap())
-
+        assert_eq!(vec![0b11100011u8, 0b00000000, 0b00011010], a.interest(b).unwrap())
     }
 }

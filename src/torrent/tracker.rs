@@ -1,5 +1,5 @@
 use super::bencoders::*;
-use super::nom::IResult;
+use nom::IResult;
 use std::net::IpAddr;
 use bytes::Bytes;
 use std::collections::HashMap;
