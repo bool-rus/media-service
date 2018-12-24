@@ -194,7 +194,7 @@ impl Into<Bytes> for PeerMessage {
                 let size = 1 + 3 * SIZE_BYTES;
                 let mut ret = BytesMut::with_capacity(size + SIZE_BYTES);
                 ret.put_u32_be(size as u32);
-                ret.put(b'6');
+                ret.put(b'8');
                 ret.put_u32_be(block);
                 ret.put_u32_be(offset);
                 ret.put_u32_be(length);
@@ -216,6 +216,7 @@ mod parser {
     use super::*;
     use nom::be_u32;
     use nom::be_u8;
+    use nom::be_u16;
     use std::str;
     use nom::IResult;
     named!(parseHandshake<Handshake>,
@@ -236,6 +237,25 @@ mod parser {
 
                 Handshake{protocol, extentions, info_hash, peer_id}
             }
+        )
+    );
+
+    named!(parseMessage<PeerMessage>,
+        chain!(
+            size: be_u32 ~
+            item: alt!(
+                chain!(tag!("0"), || {PeerMessage::Choke}) |
+                chain!(tag!("1"), || {PeerMessage::Unchoke}) |
+                chain!(tag!("2"), || {PeerMessage::Interested}) |
+                chain!(tag!("3"), || {PeerMessage::NotInterested}) |
+                chain!(tag!("4") ~ index: be_u32, || {PeerMessage::Have(index)}) |
+                chain!(tag!("5") ~ bytes: take!(size-1), || {PeerMessage::Bitfield(bytes.to_vec())}) |
+                chain!(tag!("6") ~ block: be_u32 ~ offset: be_u32 ~ length: be_u32, ||{PeerMessage::Request{block,offset,length}}) |
+                chain!(tag!("7") ~ block: be_u32 ~ offset: be_u32 ~ data: take!(size-9), ||{PeerMessage::Piece{block,offset,data: Bytes::from(data)}}) |
+                chain!(tag!("8") ~ block: be_u32 ~ offset: be_u32 ~ length: be_u32, ||{PeerMessage::Cancel{block, offset, length}}) |
+                chain!(tag!("9") ~ port: be_u16, ||{PeerMessage::Port(port)})
+            ),
+            || {item}
         )
     );
 
