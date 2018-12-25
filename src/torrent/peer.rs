@@ -74,13 +74,10 @@ impl Bitfield for Vec<u8> {
         if me.len() != another.len() {
             Err(BitfieldError("Different sizes of Bitfields".to_string()))
         } else {
-            Ok(another.iter()
-                .zip(me.iter())
+            Ok(me.iter()
+                .zip(another.iter())
                 .map(|(&a, &b)| (a & b) ^ b)
-                .fold(Vec::with_capacity(me.len()), |mut buf, x| {
-                    buf.push(x);
-                    buf
-                })
+                .collect()
             )
         }
     }
@@ -340,8 +337,14 @@ mod test {
         let offset = 1 % 8;
         let mask = 1u8 << 7 - offset;
         assert_eq!(0b01000000, mask);
+
         let mask = 0xffu8 ^ mask;
         assert_eq!(0b10111111, mask);
+
+        let a = 0b11100011u8;
+        let b = 0b00111001u8;
+        assert_eq!(0b00100001u8, a & b);
+        assert_eq!(0b00011000u8, (a & b) ^ b);
     }
 
     #[test]
@@ -359,6 +362,6 @@ mod test {
 
         let a = vec![0b00000000u8, 0b00011100, 0b11100011];
         let b = vec![0b11100011u8, 0b00011100, 0b00111001];
-        assert_eq!(vec![0b11100011u8, 0b00000000, 0b00011010], a.interest(b).unwrap())
+        assert_eq!(vec![0b11100011u8, 0b00000000, 0b00011000], a.interest(b).unwrap())
     }
 }
