@@ -218,44 +218,44 @@ mod parser {
     use nom::be_u8;
     use nom::be_u16;
     use std::str;
-    use nom::IResult;
     named!(parseHandshake<Handshake>,
-        chain!(
-            size: be_u8 ~
-            protocol: take!(size) ~
-            ext: take!(8) ~
-            info: take!(20) ~
-            peer: take!(20),
-            || {
-                let protocol = str::from_utf8(protocol).unwrap().to_string(); //TODO: как тут грамотно вернуть Error?
-                let mut extentions: [u8;8] = Default::default();
-                extentions.copy_from_slice(ext);
-                let mut info_hash: HashString = Default::default();
-                info_hash.copy_from_slice(info);
-                let mut peer_id: HashString = Default::default();
-                peer_id.copy_from_slice(peer);
-
-                Handshake{protocol, extentions, info_hash, peer_id}
-            }
+        do_parse!(
+            size: be_u8 >>
+            protocol: take!(size) >>
+            ext: take!(8) >>
+            info: take!(20) >>
+            peer: take!(20) >>
+            ({
+            let mut extentions: [u8;8] = Default::default();
+            extentions.copy_from_slice(ext);
+            let mut info_hash: HashString = Default::default();
+            info_hash.copy_from_slice(info);
+            let mut peer_id: HashString = Default::default();
+            peer_id.copy_from_slice(peer);
+            let protocol = str::from_utf8(protocol).unwrap().to_string();
+            Handshake{protocol, extentions, info_hash, peer_id}
+            })
         )
     );
 
     named!(parseMessage<PeerMessage>,
-        chain!(
-            size: be_u32 ~
-            item: alt!(
-                chain!(tag!("0"), || {PeerMessage::Choke}) |
-                chain!(tag!("1"), || {PeerMessage::Unchoke}) |
-                chain!(tag!("2"), || {PeerMessage::Interested}) |
-                chain!(tag!("3"), || {PeerMessage::NotInterested}) |
-                chain!(tag!("4") ~ index: be_u32, || {PeerMessage::Have(index)}) |
-                chain!(tag!("5") ~ bytes: take!(size-1), || {PeerMessage::Bitfield(bytes.to_vec())}) |
-                chain!(tag!("6") ~ block: be_u32 ~ offset: be_u32 ~ length: be_u32, ||{PeerMessage::Request{block,offset,length}}) |
-                chain!(tag!("7") ~ block: be_u32 ~ offset: be_u32 ~ data: take!(size-9), ||{PeerMessage::Piece{block,offset,data: Bytes::from(data)}}) |
-                chain!(tag!("8") ~ block: be_u32 ~ offset: be_u32 ~ length: be_u32, ||{PeerMessage::Cancel{block, offset, length}}) |
-                chain!(tag!("9") ~ port: be_u16, ||{PeerMessage::Port(port)})
-            ),
-            || {item}
+        do_parse!(
+            size: be_u32 >>
+            item: cond!(size>0, alt!(
+                do_parse!(tag!("0") >> (PeerMessage::Choke)) |
+                do_parse!(tag!("1") >> (PeerMessage::Unchoke)) |
+                do_parse!(tag!("2") >> (PeerMessage::Interested)) |
+                do_parse!(tag!("3") >> (PeerMessage::NotInterested)) |
+                do_parse!(tag!("4") >> index: be_u32 >> (PeerMessage::Have(index))) |
+                do_parse!(tag!("5") >> bytes: take!(size-1) >> (PeerMessage::Bitfield(bytes.to_vec()))) |
+                do_parse!(tag!("6") >> block: be_u32 >> offset: be_u32 >> length: be_u32 >> (PeerMessage::Request{block,offset,length})) |
+                do_parse!(tag!("7") >> block: be_u32 >> offset: be_u32 >> data: take!(size-9) >> (PeerMessage::Piece{block,offset,data: Bytes::from(data)})) |
+                do_parse!(tag!("8") >> block: be_u32 >> offset: be_u32 >> length: be_u32 >> (PeerMessage::Cancel{block, offset, length})) |
+                do_parse!(tag!("9") >> port: be_u16 >> (PeerMessage::Port(port)))
+            )) >> (match item {
+                    Some(item) => item,
+                    None => PeerMessage::KeepAlive,
+                })
         )
     );
 
@@ -269,7 +269,7 @@ mod parser {
         };
         let bytes: Bytes = x.clone().into();
         let handshake = parseHandshake(bytes.as_ref());
-        assert_eq!(IResult::Done(b"".as_ref(), x), handshake)
+        assert_eq!(Result::Ok((b"".as_ref(), x)), handshake)
     }
 }
 

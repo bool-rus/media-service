@@ -1,5 +1,8 @@
-use super::bencoders::*;
-use nom::IResult;
+extern crate nom_old;
+extern crate bencoders;
+
+use self::bencoders::*;
+use self::nom_old::IResult;
 use std::net::IpAddr;
 use bytes::Bytes;
 use std::collections::HashMap;
