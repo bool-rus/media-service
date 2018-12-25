@@ -108,6 +108,7 @@ impl Into<Bytes> for Handshake {
     }
 }
 
+#[derive(Clone, Debug, PartialEq)]
 pub enum PeerMessage {
     KeepAlive,
     Choke,
@@ -218,7 +219,7 @@ mod parser {
     use nom::be_u8;
     use nom::be_u16;
     use std::str;
-    named!(parseHandshake<Handshake>,
+    named!(pub parseHandshake<Handshake>,
         do_parse!(
             size: be_u8 >>
             protocol: take!(size) >>
@@ -238,7 +239,7 @@ mod parser {
         )
     );
 
-    named!(parseMessage<PeerMessage>,
+    named!(pub parseMessage<PeerMessage>,
         do_parse!(
             size: be_u32 >>
             item: cond!(size>0, alt!(
@@ -258,6 +259,42 @@ mod parser {
                 })
         )
     );
+
+    #[test]
+    fn test_parse_peer_message() {
+        let val = PeerMessage::KeepAlive;
+        let bytes: Bytes = val.clone().into();
+        assert_eq!(Ok((b"".as_ref(),val)), parseMessage(bytes.as_ref()));
+
+        let val = PeerMessage::Interested;
+        let bytes: Bytes = val.clone().into();
+        assert_eq!(Ok((b"".as_ref(),val)), parseMessage(bytes.as_ref()));
+
+        let val = PeerMessage::Have(463234);
+        let bytes: Bytes = val.clone().into();
+        assert_eq!(Ok((b"".as_ref(),val)), parseMessage(bytes.as_ref()));
+        let val = PeerMessage::Bitfield(b"adnfysdfnskdfj".to_vec());
+
+        let bytes: Bytes = val.clone().into();
+        assert_eq!(Ok((b"".as_ref(),val)), parseMessage(bytes.as_ref()));
+
+        let val = PeerMessage::Request {block: 12423, offset: 345, length: 13453};
+        let bytes: Bytes = val.clone().into();
+        assert_eq!(Ok((b"".as_ref(),val)), parseMessage(bytes.as_ref()));
+
+        let val = PeerMessage::Piece {block: 123,offset:234, data: b"sadnfkydfasdfwefgsdresadnfkybnf".as_ref().into()};
+        let bytes: Bytes = val.clone().into();
+        assert_eq!(Ok((b"".as_ref(),val)), parseMessage(bytes.as_ref()));
+
+        let val = PeerMessage::Cancel {block:31455,offset:12334,length:2355};
+        let bytes: Bytes = val.clone().into();
+        assert_eq!(Ok((b"".as_ref(),val)), parseMessage(bytes.as_ref()));
+
+        let val = PeerMessage::Port(63445);
+        let bytes: Bytes = val.clone().into();
+        assert_eq!(Ok((b"".as_ref(),val)), parseMessage(bytes.as_ref()));
+
+    }
 
     #[test]
     fn test_parse_handshake() {
@@ -309,7 +346,7 @@ mod test {
 
     #[test]
     fn test_bitfield() {
-        let mut bitfield = Vec::full(16);
+        let bitfield = Vec::full(16);
         assert_eq!([0b11111111, 0b11111111], bitfield.as_ref());
         let mut bitfield = Vec::full(19);
         assert_eq!([0b11111111, 0b11111111, 0b11100000], bitfield.as_ref());
