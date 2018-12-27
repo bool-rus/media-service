@@ -2,6 +2,8 @@ use futures::Stream;
 use bytes::Bytes;
 use futures::Async;
 
+pub type HashString = [u8; 20];
+
 #[derive(Debug,Fail)]
 #[fail(display="{}",0)]
 pub struct TorrentError(pub String);
