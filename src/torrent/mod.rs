@@ -1,3 +1,5 @@
+extern crate tokio_core;
+
 mod faces;
 mod implement;
 mod tracker;

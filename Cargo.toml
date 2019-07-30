@@ -26,3 +26,4 @@ percent_encoding = {version="1.0", package="percent-encoding"}
 bencoders = "0.1"
 nom_old = {version = "~0.3.0", package="nom"}
 nom = {version = "4.1", package="nom"}
+tokio-core = "*"

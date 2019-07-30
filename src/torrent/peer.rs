@@ -61,8 +61,8 @@ impl Bitfield for Vec<u8> {
     fn remove_bit(&mut self, index: u32) -> Result<(), BitfieldError> {
         let byte_index = (index / 8) as usize;
         let offset = index % 8;
-        let mask = 1u8 << 7 - offset; //00010000
-        let mask = 0xffu8 ^ mask; //11101111
+        let mask = 1u8 << 7 - offset; //example: 00010000
+        let mask = 0xffu8 ^ mask; //example: 11101111
         let byte = self.get_mut(byte_index).unwrap();
         *byte = *byte & mask;
         Ok(())
