@@ -19,6 +19,7 @@ use std::cell::RefCell;
 use futures::sink::Sink;
 use std::mem;
 use std::collections::VecDeque;
+use self::peer::Peer;
 
 struct Block;
 
@@ -91,16 +92,6 @@ pub struct TorrentClient {
 
 }
 
-enum PeerState {
-    Chocked,
-    Unchocked,
-}
-
-struct Peer {
-    channel: TcpStream,
-    bitfield: Vec<u8>,
-    state: (PeerState, PeerState),
-}
 
 struct TorrentRequest {
     meta: MetainfoFile,
