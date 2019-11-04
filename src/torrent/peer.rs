@@ -1,18 +1,29 @@
 use super::tokio::net::TcpStream;
-use super::tokio_io::{AsyncRead, AsyncWrite};
 use super::tokio::io;
 use failure::Fail;
 use torrent::message::{PeerMessage, Handshake, Bitfield};
-use bytes::{Bytes, IntoBuf};
-use futures::Future;
+use bytes::{Bytes};
+use futures::{Future};
 use std::net::SocketAddr;
-extern crate byteorder;
-use self::byteorder::{BigEndian, ReadBytesExt};
+
+use super::tokio::io::Error;
+use torrent::peer::PeerError::IoError;
 
 
 #[derive(Debug,Fail)]
-#[fail(display="{}",0)]
-pub struct PeerError(pub String);
+pub enum PeerError {
+    #[fail(display="{}",0)]
+    IoError(io::Error),
+    #[fail(display="{}",0)]
+    Simple(String),
+    #[fail(display="Handshake error")]
+    Handshake,
+}
+impl From<io::Error> for PeerError {
+    fn from(e: Error) -> Self {
+        IoError(e)
+    }
+}
 
 enum PeerState {
     Chocked,
@@ -26,17 +37,22 @@ pub struct Peer {
 }
 
 impl Peer {
-    pub fn new(addr: SocketAddr, handshake: Handshake) -> impl Future<Item=Self,Error=io::Error> {
+    pub fn new(addr: SocketAddr, handshake: Handshake) -> impl Future<Item=Self,Error=PeerError> {
         let handshake_request = handshake.clone();
-        TcpStream::connect(&addr).and_then( |stream|{
+        TcpStream::connect(&addr).and_then( |stream| {
             let bytes: Bytes = handshake.into();
             io::write_all(stream, bytes)
-        }).and_then(|(mut stream, _)|{
+        }).and_then(|(stream, _)| {
             Handshake::parse(stream)
-        }).and_then(move |(handshake_response, stream)| {
-            assert!(handshake_request.validate(&handshake_response));
+        }).from_err().and_then(move |(handshake_response, stream)| {
+            if handshake_request.validate(&handshake_response) {
+                futures::future::ok(stream)
+            } else {
+                futures::future::err(PeerError::Handshake)
+            }
+        }).and_then( |stream| {
             let bytes: Bytes = PeerMessage::Interested.into();
-            io::write_all(stream,bytes)
+            io::write_all(stream, bytes).from_err()
         }).and_then(|(stream, _)| {
             Ok(Peer {
                 channel: stream,
