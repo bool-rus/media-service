@@ -2,7 +2,7 @@ use super::tokio::net::TcpStream;
 use super::tokio_io::{AsyncRead, AsyncWrite};
 use super::tokio::io;
 use failure::Fail;
-use torrent::message::{PeerMessage, Handshake};
+use torrent::message::{PeerMessage, Handshake, Bitfield};
 use bytes::{Bytes, IntoBuf};
 use futures::Future;
 use std::net::SocketAddr;
@@ -44,6 +44,9 @@ impl Peer {
                 state: (PeerState::Unchocked, PeerState::Chocked)
             })
         })
+    }
+    pub fn have(&self, piece: u32) -> bool {
+        self.bitfield.have_bit(piece)
     }
 }
 
