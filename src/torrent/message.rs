@@ -129,8 +129,8 @@ impl Handshake {
 impl Into<Bytes> for Handshake {
     fn into(self) -> Bytes {
         let protocol = self.protocol.as_bytes();
-        let size = protocol.len() + HANDSHAKE_DEFAULT_SIZE;
-        let mut ret = BytesMut::with_capacity(size);
+        let size = protocol.len();
+        let mut ret = BytesMut::with_capacity(size + HANDSHAKE_DEFAULT_SIZE);
         ret.put_u8(size as u8);
         ret.put(protocol);
         ret.put(self.extentions.as_ref());
