@@ -116,7 +116,7 @@ impl Handshake {
                 buf.put_u8(buf[0]);
                 buf.put(body);
                 //TODO: избавиться от unwrap
-                (parser_new::parse_handshake(buf.as_ref()).unwrap().1, reader)
+                (parser::parse_handshake(buf.as_ref()).unwrap().1, reader)
             })
         })
     }
@@ -244,7 +244,7 @@ impl Into<Bytes> for PeerMessage {
     }
 }
 
-mod parser_new {
+mod parser {
     extern crate nom;
     use super::*;
     use self::nom::{
