@@ -7,7 +7,7 @@ cache: cargo
 matrix:
   include:
     - os: linux
-      arch: arm32
+      arch: arm64
   allow_failures:
   - rust: nightly
   fast_finish: true
