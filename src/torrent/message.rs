@@ -8,13 +8,10 @@ use self::nom::{
 };
 use super::HashString;
 use super::tokio::io;
-use bytes::{Bytes, BytesMut, BufMut, Buf};
+use bytes::{Bytes, BytesMut, BufMut};
 
-extern crate byteorder;
-use self::byteorder::{BigEndian, ReadBytesExt};
 use futures::Future;
 use super::tokio_io::AsyncRead;
-use torrent::message::parser::parse_message;
 
 
 type TorrentExtentions = [u8; 8];
@@ -256,7 +253,7 @@ impl PeerMessage {
             let buf = BytesMut::with_capacity(size as usize);
             io::read_exact(r, buf).map(move |(r,b)|(r,b,size))
         }).and_then(|(read, buf, size)|{
-            let (_, message) = parse_message(&buf, size).unwrap();
+            let (_, message) = parser::parse_message(&buf, size).unwrap();
             Ok((read, message))
         })
     }
