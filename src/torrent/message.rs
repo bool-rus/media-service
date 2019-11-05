@@ -116,7 +116,7 @@ impl Handshake {
                 buf.put_u8(buf[0]);
                 buf.put(body);
                 //TODO: избавиться от unwrap
-                (parser::parseHandshake(buf.as_ref()).unwrap().1, reader)
+                (parser_new::parse_handshake(buf.as_ref()).unwrap().1, reader)
             })
         })
     }
@@ -244,31 +244,67 @@ impl Into<Bytes> for PeerMessage {
     }
 }
 
+mod parser_new {
+    extern crate nom;
+    use super::*;
+    use self::nom::{
+        IResult,
+        bytes::streaming::*,
+        number::streaming::*,
+
+        sequence::tuple
+    };
+
+    fn parse_hash_string(i: &[u8]) -> IResult<&[u8], HashString> {
+        let (i, slice) = take(20usize)(i)?;
+        let mut res: [u8;20] = Default::default();
+        res.copy_from_slice(slice);
+        Ok((i, res))
+    }
+
+    fn parse_torrent_extentions(i: &[u8]) -> IResult<&[u8], TorrentExtentions> {
+        let (i, slice) = take(8usize)(i)?;
+        let mut res: [u8;8] = Default::default();
+        res.copy_from_slice(slice);
+        Ok((i, res))
+    }
+
+    pub fn parse_handshake(i: &[u8]) -> IResult<&[u8], Handshake> {
+        let (i,size) = be_u8(i)?;
+        let (i, (protocol, extentions, info_hash, peer_id)) = tuple((
+            take(size),
+            parse_torrent_extentions,
+            parse_hash_string,
+            parse_hash_string
+        ))(i)?;
+        Ok((i, Handshake {
+            protocol: std::str::from_utf8(protocol).unwrap().to_string(),
+            extentions: extentions,
+            info_hash: info_hash,
+            peer_id: peer_id
+        }))
+    }
+
+    #[test]
+    fn test_parse_handshake() {
+        let x = Handshake {
+            protocol: "bugoga".to_string(),
+            extentions: [1u8, 2, 3, 4, 5, 6, 7, 8],
+            info_hash: [1u8, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
+            peer_id: [20u8, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1],
+        };
+        let bytes: Bytes = x.clone().into();
+        let parseRes = parse_handshake(bytes.as_ref());
+        assert_eq!(Result::Ok((b"".as_ref(), x)), parseRes);
+        let (buf, handshake) = parseRes.unwrap();
+    }
+}
+
 mod parser {
     use super::*;
     use nom::be_u32;
-    use nom::be_u8;
     use nom::be_u16;
-    use std::str;
-    named!(pub parseHandshake<Handshake>,
-        do_parse!(
-            size: be_u8 >>
-            protocol: take!(size) >>
-            ext: take!(8) >>
-            info: take!(20) >>
-            peer: take!(20) >>
-            ({
-            let mut extentions: [u8;8] = Default::default();
-            extentions.copy_from_slice(ext);
-            let mut info_hash: HashString = Default::default();
-            info_hash.copy_from_slice(info);
-            let mut peer_id: HashString = Default::default();
-            peer_id.copy_from_slice(peer);
-            let protocol = str::from_utf8(protocol).unwrap().to_string();
-            Handshake{protocol, extentions, info_hash, peer_id}
-            })
-        )
-    );
+
 
     named!(pub parseMessage<PeerMessage>,
         do_parse!(
@@ -327,19 +363,6 @@ mod parser {
 
     }
 
-    #[test]
-    fn test_parse_handshake() {
-        let x = Handshake {
-            protocol: "bugoga".to_string(),
-            extentions: [1u8, 2, 3, 4, 5, 6, 7, 8],
-            info_hash: [1u8, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
-            peer_id: [20u8, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1],
-        };
-        let bytes: Bytes = x.clone().into();
-        let parseRes = parseHandshake(bytes.as_ref());
-        assert_eq!(Result::Ok((b"".as_ref(), x)), parseRes);
-        let (buf, handshake) = parseRes.unwrap();
-    }
 }
 
 #[cfg(test)]

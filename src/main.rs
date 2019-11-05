@@ -10,7 +10,7 @@ extern crate failure;
 #[macro_use] extern crate failure_derive;
 #[macro_use] extern crate serde_derive;
 #[macro_use] extern crate display_derive;
-#[macro_use] extern crate nom;
+#[macro_use] extern crate nom_macro as nom;
 extern crate core;
 
 mod request_utils;
