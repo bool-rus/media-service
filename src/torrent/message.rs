@@ -279,9 +279,9 @@ mod parser {
         ))(i)?;
         Ok((i, Handshake {
             protocol: std::str::from_utf8(protocol).unwrap().to_string(),
-            extentions: extentions,
-            info_hash: info_hash,
-            peer_id: peer_id
+            extentions,
+            info_hash,
+            peer_id
         }))
     }
 
