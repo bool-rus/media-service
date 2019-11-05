@@ -5,6 +5,9 @@ rust:
 - nightly
 cache: cargo
 matrix:
+  include:
+    - os: linux
+      arch: arm32
   allow_failures:
   - rust: nightly
   fast_finish: true
