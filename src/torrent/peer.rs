@@ -65,13 +65,17 @@ impl Peer {
     }
 }
 
-struct Connection(TcpStream);
+struct Connection<R>(Box<Future<Item=(R, PeerMessage), Error=io::Error>>);
 
-impl Stream for Connection {
+impl<R: 'static + AsyncRead> Stream for Connection<R> {
     type Item = PeerMessage;
     type Error = PeerError;
 
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
-        unimplemented!()
+        let Self(fut) = self;
+        let (read, message) = try_ready!(fut.poll());
+        let new_fut = PeerMessage::parse(read);
+        self.0 = Box::new(new_fut);
+        Ok(Async::Ready(Some(message)))
     }
 }
