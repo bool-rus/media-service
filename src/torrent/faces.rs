@@ -1,6 +1,5 @@
-use futures::Stream;
+use tokio::prelude::*;
 use bytes::Bytes;
-use futures::Async;
 
 pub type HashString = [u8; 20];
 

@@ -2,10 +2,10 @@ extern crate actix_web;
 extern crate bip_metainfo;
 extern crate bytes;
 extern crate futures_fs;
-extern crate futures;
 extern crate uuid;
 extern crate hex;
 extern crate failure;
+extern crate tokio;
 
 #[macro_use] extern crate failure_derive;
 #[macro_use] extern crate serde_derive;
@@ -27,7 +27,7 @@ use actix_web::{
     Responder,
     http::Method,
 };
-use futures::{Future, Stream};
+use tokio::prelude::{Future, Stream, future};
 use bip_metainfo::MetainfoFile;
 use storage::CachedSink;
 use response::TorrentFile;
@@ -50,7 +50,7 @@ fn index(_req: &HttpRequest) -> impl Responder {
 
 fn upload_torrent(req: HttpRequest) -> FutureResponse<HttpResponse> {
     match request_utils::invoke_body_size(&req) {
-        Err(err) => futures::failed(err).responder(),
+        Err(err) => future::failed(err).responder(),
         Ok(size) => {
             use uuid::Uuid;
             let file_name = Uuid::new_v4().to_string();

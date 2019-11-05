@@ -9,7 +9,6 @@ default = ["sha1/std", "failure/std"]
 [dependencies]
 actix-web = "0.7"
 bip_metainfo = "0.10"
-futures = "0.1"
 bytes = "0.4"
 futures-fs = "*"
 http = "0.1"
@@ -26,6 +25,4 @@ percent_encoding = {version="1.0", package="percent-encoding"}
 bencoders = "0.1"
 nom_old = {version = "~0.3.0", package="nom"}
 nom = "5.0.1"
-tokio-core = "*"
-tokio-io = "*"
 tokio = "*"

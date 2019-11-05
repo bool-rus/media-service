@@ -1,6 +1,6 @@
 extern crate http;
 
-use futures::Stream;
+use tokio::prelude::*;
 use actix_web::{error, HttpRequest, HttpMessage, Error};
 use actix_web::multipart::{MultipartItem, Multipart};
 use bytes::Bytes;

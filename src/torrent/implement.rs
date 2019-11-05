@@ -1,23 +1,15 @@
-
-
-use bip_metainfo::MetainfoFile;
 use super::*;
+use tokio::prelude::*;
+use tokio::sync::mpsc;
+use tokio::sync::mpsc::{Sender, Receiver};
+use bip_metainfo::MetainfoFile;
 use actix_web::client;
-use futures::future::Future;
 use actix_web::HttpMessage;
 use bytes::Bytes;
-use futures::sync::mpsc;
-use futures::sync::mpsc::{Sender, Receiver};
-use futures::Stream;
-use futures::Async;
-use self::tokio_core::reactor::Core;
-use self::tokio_core::net::TcpStream;
 use std::collections::HashMap;
 use bip_metainfo::InfoHash;
 use std::net::IpAddr;
 use std::cell::RefCell;
-use futures::sink::Sink;
-use std::mem;
 use std::collections::VecDeque;
 use self::peer::Peer;
 
@@ -31,27 +23,25 @@ struct TorrentService {
 }
 
 
-fn new_service() -> Sender<TorrentRequest> {
-    let service = RefCell::new(TorrentService::new());
-    let (s,r) = mpsc::channel::<TorrentRequest>(100);
-    let mut core = Core::new().unwrap();
-    let handle = core.handle();
-    let runner = r.for_each(|req|{
-        use self::tracker::*;
-        let handle = handle.clone();
-        let TorrentRequest{ meta, filenum: file, sender, receiver} = req;
-
-        let processor = receiver.for_each(move |_| {
-            let sender = sender.clone();
-
-            futures::future::ok(())
-        });
-        handle.spawn(processor);
-        futures::future::ok(())
-    });
-    core.run(runner).unwrap();
-    s
-}
+//fn new_service1() -> Sender<TorrentRequest> {
+//    let service = RefCell::new(TorrentService::new());
+//    let (s,r) = mpsc::channel::<TorrentRequest>(100);
+//    let mut core = Core::new().unwrap();
+//    let handle = core.handle();
+//    let runner = r.for_each(|req|{
+//        let handle = handle.clone();
+//        let TorrentRequest{ meta, filenum: file, sender, receiver} = req;
+//        let processor = receiver.for_each(move |_| {
+//            let sender = sender.clone();
+//
+//            future::ok(())
+//        });
+//        handle.spawn(processor);
+//        future::ok(())
+//    });
+//    core.run(runner).unwrap();
+//    s
+//}
 
 impl TorrentService {
     fn new() -> Self {
@@ -135,7 +125,7 @@ struct TorrentStream {
 
 impl Stream for TorrentStream {
     type Item = Bytes;
-    type Error = ();
+    type Error = mpsc::error::RecvError;
 
     fn poll(&mut self) -> Result<Async<Option<Self::Item>>, Self::Error> {
         match self.receiver.poll() {
@@ -161,7 +151,7 @@ impl TorrentClient {
 impl faces::TorrentClient for TorrentClient {
     fn download(&mut self) -> SizedStream {
 
-        let stream = futures::stream::once(Ok(Bytes::from("bugoga")));
+        let stream = stream::once(Ok(Bytes::from("bugoga")));
         SizedStream::new(0,stream)
     }
 
@@ -175,7 +165,7 @@ impl faces::TorrentClient for TorrentClient {
 mod tests {
     use actix_web::actix;
     use actix_web::client;
-    use futures::future::Future;
+    use future::Future;
 
     #[test]
     fn test_client() {}

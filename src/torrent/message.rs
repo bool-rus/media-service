@@ -7,11 +7,10 @@ use self::nom::{
     sequence::tuple
 };
 use super::HashString;
-use super::tokio::io;
+use tokio::io;
 use bytes::{Bytes, BytesMut, BufMut};
 
-use futures::Future;
-use super::tokio_io::AsyncRead;
+use tokio::prelude::*;
 
 
 type TorrentExtentions = [u8; 8];

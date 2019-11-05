@@ -1,13 +1,12 @@
-use super::tokio::net::TcpStream;
-use super::tokio::io;
+use tokio::net::TcpStream;
+use tokio::io;
 use failure::Fail;
 use torrent::message::{PeerMessage, Handshake, Bitfield};
 use bytes::{Bytes};
-use futures::{Future};
 use std::net::SocketAddr;
 
-use super::tokio::io::Error;
-use torrent::peer::PeerError::IoError;
+use tokio::io::Error;
+use tokio::prelude::*;
 
 
 #[derive(Debug,Fail)]
@@ -21,7 +20,7 @@ pub enum PeerError {
 }
 impl From<io::Error> for PeerError {
     fn from(e: Error) -> Self {
-        IoError(e)
+        PeerError::IoError(e)
     }
 }
 
@@ -46,9 +45,9 @@ impl Peer {
             Handshake::parse(stream)
         }).from_err().and_then(move |(stream, handshake_response)| {
             if handshake_request.validate(&handshake_response) {
-                futures::future::ok(stream)
+                future::ok(stream)
             } else {
-                futures::future::err(PeerError::Handshake)
+                future::err(PeerError::Handshake)
             }
         }).and_then( |stream| {
             let bytes: Bytes = PeerMessage::Interested.into();
@@ -66,3 +65,13 @@ impl Peer {
     }
 }
 
+struct Connection(TcpStream);
+
+impl Stream for Connection {
+    type Item = PeerMessage;
+    type Error = PeerError;
+
+    fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
+        unimplemented!()
+    }
+}

@@ -1,14 +1,9 @@
-use futures_fs::FsPool;
-use futures::Sink;
-use futures::AsyncSink;
-use futures::Async;
+use futures_fs::*;
 use bytes::*;
-use futures_fs::FsWriteSink;
-use futures_fs::FsReadStream;
-use futures::Future;
-use futures::stream::Stream;
 use std::marker::PhantomData;
-use failure::{Fail,Error};
+use failure::*;
+use tokio::prelude::*;
+
 
 
 struct NullSink<I,E>(PhantomData<I>,PhantomData<E>);
