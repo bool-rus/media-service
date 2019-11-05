@@ -251,7 +251,7 @@ mod parser_new {
         IResult,
         bytes::streaming::*,
         number::streaming::*,
-
+        character::streaming::anychar,
         sequence::tuple
     };
 
@@ -298,72 +298,98 @@ mod parser_new {
         assert_eq!(Result::Ok((b"".as_ref(), x)), parseRes);
         let (buf, handshake) = parseRes.unwrap();
     }
-}
 
-mod parser {
-    use super::*;
-    use nom::be_u32;
-    use nom::be_u16;
-
-
-    named!(pub parseMessage<PeerMessage>,
-        do_parse!(
-            size: be_u32 >>
-            item: cond!(size>0, alt!(
-                do_parse!(tag!("0") >> (PeerMessage::Choke)) |
-                do_parse!(tag!("1") >> (PeerMessage::Unchoke)) |
-                do_parse!(tag!("2") >> (PeerMessage::Interested)) |
-                do_parse!(tag!("3") >> (PeerMessage::NotInterested)) |
-                do_parse!(tag!("4") >> index: be_u32 >> (PeerMessage::Have(index))) |
-                do_parse!(tag!("5") >> bytes: take!(size-1) >> (PeerMessage::Bitfield(bytes.to_vec()))) |
-                do_parse!(tag!("6") >> block: be_u32 >> offset: be_u32 >> length: be_u32 >> (PeerMessage::Request{block,offset,length})) |
-                do_parse!(tag!("7") >> block: be_u32 >> offset: be_u32 >> data: take!(size-9) >> (PeerMessage::Piece{block,offset,data: Bytes::from(data)})) |
-                do_parse!(tag!("8") >> block: be_u32 >> offset: be_u32 >> length: be_u32 >> (PeerMessage::Cancel{block, offset, length})) |
-                do_parse!(tag!("9") >> port: be_u16 >> (PeerMessage::Port(port)))
-            )) >> (match item {
-                    Some(item) => item,
-                    None => PeerMessage::KeepAlive,
-                })
-        )
-    );
-
-    #[test]
-    fn test_parse_peer_message() {
-        let val = PeerMessage::KeepAlive;
-        let bytes: Bytes = val.clone().into();
-        assert_eq!(Ok((b"".as_ref(),val)), parseMessage(bytes.as_ref()));
-
-        let val = PeerMessage::Interested;
-        let bytes: Bytes = val.clone().into();
-        assert_eq!(Ok((b"".as_ref(),val)), parseMessage(bytes.as_ref()));
-
-        let val = PeerMessage::Have(463234);
-        let bytes: Bytes = val.clone().into();
-        assert_eq!(Ok((b"".as_ref(),val)), parseMessage(bytes.as_ref()));
-        let val = PeerMessage::Bitfield(b"adnfysdfnskdfj".to_vec());
-
-        let bytes: Bytes = val.clone().into();
-        assert_eq!(Ok((b"".as_ref(),val)), parseMessage(bytes.as_ref()));
-
-        let val = PeerMessage::Request {block: 12423, offset: 345, length: 13453};
-        let bytes: Bytes = val.clone().into();
-        assert_eq!(Ok((b"".as_ref(),val)), parseMessage(bytes.as_ref()));
-
-        let val = PeerMessage::Piece {block: 123,offset:234, data: b"sadnfkydfasdfwefgsdresadnfkybnf".as_ref().into()};
-        let bytes: Bytes = val.clone().into();
-        assert_eq!(Ok((b"".as_ref(),val)), parseMessage(bytes.as_ref()));
-
-        let val = PeerMessage::Cancel {block:31455,offset:12334,length:2355};
-        let bytes: Bytes = val.clone().into();
-        assert_eq!(Ok((b"".as_ref(),val)), parseMessage(bytes.as_ref()));
-
-        let val = PeerMessage::Port(63445);
-        let bytes: Bytes = val.clone().into();
-        assert_eq!(Ok((b"".as_ref(),val)), parseMessage(bytes.as_ref()));
-
+    pub fn parse_message(i: &[u8]) -> IResult<&[u8],PeerMessage> {
+        let (i, size) = be_u32(i)?;
+        if size == 0 {
+            Ok((i, PeerMessage::KeepAlive))
+        } else {
+            let (i, tag) = anychar(i)?;
+            match tag {
+                '0' => Ok((i, PeerMessage::Choke)),
+                '1' => Ok((i, PeerMessage::Unchoke)),
+                '2' => Ok((i, PeerMessage::Interested)),
+                '3' => Ok((i, PeerMessage::NotInterested)),
+                '4' => {
+                    let (i, index) = be_u32(i)?;
+                    Ok((i, PeerMessage::Have(index)))
+                },
+                '5' => {
+                    let (i, bitfield) = take(size - 1)(i)?;
+                    Ok((i, PeerMessage::Bitfield(bitfield.to_vec())))
+                },
+                '6' => {
+                    let (i, (block, offset, length)) = tuple((be_u32, be_u32, be_u32))(i)?;
+                    Ok((i, PeerMessage::Request {block, offset, length}))
+                },
+                '7' => {
+                    let (i, (block, offset, data)) = tuple((be_u32, be_u32, take(size -9)))(i)?;
+                    Ok((i, PeerMessage::Piece{block, offset, data: data.into()}))
+                },
+                '8' => {
+                    let (i, (block, offset, length)) = tuple((be_u32, be_u32, be_u32))(i)?;
+                    Ok((i, PeerMessage::Cancel {block, offset, length}))
+                },
+                '9' => {
+                    let (i, port) = be_u16(i)?;
+                    Ok((i, PeerMessage::Port(port)))
+                },
+                _ => unimplemented!()
+            }
+        }
     }
 
+    #[test]
+    fn test_parse_keep_alive() {
+        let val = PeerMessage::KeepAlive;
+        let bytes: Bytes = val.clone().into();
+        assert_eq!(Ok((b"".as_ref(), val)), parse_message(bytes.as_ref()));
+    }
+    #[test]
+    fn test_parse_interested() {
+        let val = PeerMessage::Interested;
+        let bytes: Bytes = val.clone().into();
+        assert_eq!(Ok((b"".as_ref(),val)), parse_message(bytes.as_ref()));
+    }
+    #[test]
+    fn test_parse_have() {
+        let val = PeerMessage::Have(463234);
+        let bytes: Bytes = val.clone().into();
+        assert_eq!(Ok((b"".as_ref(),val)), parse_message(bytes.as_ref()));
+    }
+    #[test]
+    fn test_parse_bitfield() {
+        let val = PeerMessage::Bitfield(b"adnfysdfnskdfj".to_vec());
+        let bytes: Bytes = val.clone().into();
+        assert_eq!(Ok((b"".as_ref(),val)), parse_message(bytes.as_ref()));
+    }
+    #[test]
+    fn test_parse_request() {
+        let val = PeerMessage::Request {block: 12423, offset: 345, length: 13453};
+        let bytes: Bytes = val.clone().into();
+        assert_eq!(Ok((b"".as_ref(),val)), parse_message(bytes.as_ref()));
+    }
+    #[test]
+    fn test_parse_piece() {
+        let val = PeerMessage::Piece {block: 123,offset:234, data: b"sadnfkydfasdfwefgsdresadnfkybnf".as_ref().into()};
+        let bytes: Bytes = val.clone().into();
+        assert_eq!(Ok((b"".as_ref(),val)), parse_message(bytes.as_ref()));
+    }
+    #[test]
+    fn test_parse_cancel() {
+        let val = PeerMessage::Cancel {block:31455,offset:12334,length:2355};
+        let bytes: Bytes = val.clone().into();
+        assert_eq!(Ok((b"".as_ref(),val)), parse_message(bytes.as_ref()));
+    }
+    #[test]
+    fn test_parse_port() {
+        let val = PeerMessage::Port(63445);
+        let bytes: Bytes = val.clone().into();
+        assert_eq!(Ok((b"".as_ref(),val)), parse_message(bytes.as_ref()));
+
+    }
 }
+
 
 #[cfg(test)]
 mod test {
