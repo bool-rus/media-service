@@ -1,3 +1,11 @@
+extern crate nom;
+use self::nom::{
+    IResult,
+    bytes::complete::*,
+    number::complete::*,
+    character::complete::anychar,
+    sequence::tuple
+};
 use super::HashString;
 use super::tokio::io;
 use bytes::{Bytes, BytesMut, BufMut, Buf};
@@ -5,6 +13,8 @@ use bytes::{Bytes, BytesMut, BufMut, Buf};
 extern crate byteorder;
 use self::byteorder::{BigEndian, ReadBytesExt};
 use futures::Future;
+use super::tokio_io::AsyncRead;
+use torrent::message::parser::parse_message;
 
 
 type TorrentExtentions = [u8; 8];
@@ -107,17 +117,13 @@ pub struct Handshake {
 }
 
 impl Handshake {
-    pub fn parse<T: io::AsyncRead>(reader: T ) -> impl Future<Item=(Self,T), Error=io::Error> {
-        io::read_exact(reader, [0;1]).and_then(|(reader, buf)|{
-            let protocol_size = buf[0];
-            let mut bytes = BytesMut::with_capacity( HANDSHAKE_DEFAULT_SIZE - 1 + buf[0] as usize);
-            io::read_exact(reader, bytes).map(|(reader,body)|{
-                let mut buf = BytesMut::with_capacity(body.len() +1);
-                buf.put_u8(buf[0]);
-                buf.put(body);
-                //TODO: избавиться от unwrap
-                (parser::parse_handshake(buf.as_ref()).unwrap().1, reader)
-            })
+    pub fn parse<T: io::AsyncRead>(read: T ) -> impl Future<Item=(T,Self), Error=io::Error> {
+        io::read_exact(read, [0u8]).and_then(|(r, [protocol_size])|{
+            let buf = BytesMut::with_capacity(HANDSHAKE_DEFAULT_SIZE - 1 + protocol_size as usize);
+            io::read_exact(r, buf).map(move|(r,b)|(r,b,protocol_size))
+        }).and_then(|(r, buf, protocol_size)|{
+            let (_, handshake) = parser::parse_handshake(&buf, protocol_size).unwrap();
+            Ok((r, handshake))
         })
     }
     pub fn validate(&self, another: &Handshake) -> bool {
@@ -177,10 +183,9 @@ fn make_empty_message(message_id: u8) -> Bytes {
 }
 
 impl Into<Bytes> for PeerMessage {
-    //TODO: может, лучше в Stream?
     fn into(self) -> Bytes {
         match self {
-            PeerMessage::KeepAlive => Bytes::from([0u8, 0u8, 0u8, 0u8].as_ref()),
+            PeerMessage::KeepAlive => Bytes::from([0u8;4].as_ref()),
             PeerMessage::Choke => make_empty_message(b'0'),
             PeerMessage::Unchoke => make_empty_message(b'1'),
             PeerMessage::Interested => make_empty_message(b'2'),
@@ -244,16 +249,21 @@ impl Into<Bytes> for PeerMessage {
     }
 }
 
+impl PeerMessage {
+    pub fn parse<T: AsyncRead>(read: T) -> impl Future<Item=(T, Self), Error=std::io::Error> {
+        io::read_exact(read, [0u8;4]).and_then(|(r,buf)| {
+            let (_, size) = be_u32::<()>(&buf).unwrap();
+            let buf = BytesMut::with_capacity(size as usize);
+            io::read_exact(r, buf).map(move |(r,b)|(r,b,size))
+        }).and_then(|(read, buf, size)|{
+            let (_, message) = parse_message(&buf, size).unwrap();
+            Ok((read, message))
+        })
+    }
+}
+
 mod parser {
-    extern crate nom;
     use super::*;
-    use self::nom::{
-        IResult,
-        bytes::streaming::*,
-        number::streaming::*,
-        character::streaming::anychar,
-        sequence::tuple
-    };
 
     fn parse_hash_string(i: &[u8]) -> IResult<&[u8], HashString> {
         let (i, slice) = take(20usize)(i)?;
@@ -269,8 +279,7 @@ mod parser {
         Ok((i, res))
     }
 
-    pub fn parse_handshake(i: &[u8]) -> IResult<&[u8], Handshake> {
-        let (i,size) = be_u8(i)?;
+    pub fn parse_handshake(i: &[u8], size: u8) -> IResult<&[u8], Handshake> {
         let (i, (protocol, extentions, info_hash, peer_id)) = tuple((
             take(size),
             parse_torrent_extentions,
@@ -294,13 +303,12 @@ mod parser {
             peer_id: [20u8, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1],
         };
         let bytes: Bytes = x.clone().into();
-        let parseRes = parse_handshake(bytes.as_ref());
+        let parseRes = parse_handshake(&bytes.as_ref()[1..], 6);
         assert_eq!(Result::Ok((b"".as_ref(), x)), parseRes);
         let (buf, handshake) = parseRes.unwrap();
     }
 
-    pub fn parse_message(i: &[u8]) -> IResult<&[u8],PeerMessage> {
-        let (i, size) = be_u32(i)?;
+    pub fn parse_message(i: &[u8], size: u32) -> IResult<&[u8],PeerMessage> {
         if size == 0 {
             Ok((i, PeerMessage::KeepAlive))
         } else {
@@ -334,7 +342,7 @@ mod parser {
                     let (i, port) = be_u16(i)?;
                     Ok((i, PeerMessage::Port(port)))
                 },
-                _ => unimplemented!()
+                _ => unreachable!()
             }
         }
     }
@@ -343,50 +351,49 @@ mod parser {
     fn test_parse_keep_alive() {
         let val = PeerMessage::KeepAlive;
         let bytes: Bytes = val.clone().into();
-        assert_eq!(Ok((b"".as_ref(), val)), parse_message(bytes.as_ref()));
+        assert_eq!(parse_message(&bytes.as_ref()[4..],0), Ok((b"".as_ref(), val)));
     }
     #[test]
     fn test_parse_interested() {
         let val = PeerMessage::Interested;
         let bytes: Bytes = val.clone().into();
-        assert_eq!(Ok((b"".as_ref(),val)), parse_message(bytes.as_ref()));
+        assert_eq!(parse_message(&bytes.as_ref()[4..], 1), Ok((b"".as_ref(), val)));
     }
     #[test]
     fn test_parse_have() {
         let val = PeerMessage::Have(463234);
         let bytes: Bytes = val.clone().into();
-        assert_eq!(Ok((b"".as_ref(),val)), parse_message(bytes.as_ref()));
+        assert_eq!(parse_message(&bytes.as_ref()[4..], 4), Ok((b"".as_ref(), val)));
     }
     #[test]
     fn test_parse_bitfield() {
         let val = PeerMessage::Bitfield(b"adnfysdfnskdfj".to_vec());
         let bytes: Bytes = val.clone().into();
-        assert_eq!(Ok((b"".as_ref(),val)), parse_message(bytes.as_ref()));
+        assert_eq!(parse_message(&bytes.as_ref()[4..], 15), Ok((b"".as_ref(), val)));
     }
     #[test]
     fn test_parse_request() {
         let val = PeerMessage::Request {block: 12423, offset: 345, length: 13453};
         let bytes: Bytes = val.clone().into();
-        assert_eq!(Ok((b"".as_ref(),val)), parse_message(bytes.as_ref()));
+        assert_eq!(parse_message(&bytes.as_ref()[4..], 13), Ok((b"".as_ref(), val)));
     }
     #[test]
     fn test_parse_piece() {
         let val = PeerMessage::Piece {block: 123,offset:234, data: b"sadnfkydfasdfwefgsdresadnfkybnf".as_ref().into()};
         let bytes: Bytes = val.clone().into();
-        assert_eq!(Ok((b"".as_ref(),val)), parse_message(bytes.as_ref()));
+        assert_eq!(parse_message(&bytes.as_ref()[4..], 40), Ok((b"".as_ref(), val)));
     }
     #[test]
     fn test_parse_cancel() {
         let val = PeerMessage::Cancel {block:31455,offset:12334,length:2355};
         let bytes: Bytes = val.clone().into();
-        assert_eq!(Ok((b"".as_ref(),val)), parse_message(bytes.as_ref()));
+        assert_eq!( parse_message(&bytes.as_ref()[4..], 13), Ok((b"".as_ref(),val)));
     }
     #[test]
     fn test_parse_port() {
         let val = PeerMessage::Port(63445);
         let bytes: Bytes = val.clone().into();
-        assert_eq!(Ok((b"".as_ref(),val)), parse_message(bytes.as_ref()));
-
+        assert_eq!(parse_message(&bytes.as_ref()[4..], 4), Ok((b"".as_ref(),val)));
     }
 }
 

@@ -44,7 +44,7 @@ impl Peer {
             io::write_all(stream, bytes)
         }).and_then(|(stream, _)| {
             Handshake::parse(stream)
-        }).from_err().and_then(move |(handshake_response, stream)| {
+        }).from_err().and_then(move |(stream, handshake_response)| {
             if handshake_request.validate(&handshake_response) {
                 futures::future::ok(stream)
             } else {
