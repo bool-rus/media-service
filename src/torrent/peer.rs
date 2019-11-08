@@ -1,7 +1,7 @@
 use tokio::net::TcpStream;
 use tokio::io;
 use failure::Fail;
-use torrent::message::{PeerMessage, Handshake, Bitfield};
+use super::message::{PeerMessage, Handshake, Bitfield};
 use bytes::{Bytes};
 use std::net::SocketAddr;
 

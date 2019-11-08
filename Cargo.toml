@@ -2,6 +2,7 @@
 name = "media-service"
 version = "0.0.0"
 authors = ["Баринов Сергей Владимирович <bool.rus@gmail.com>"]
+edition = "2018"
 
 [features]
 default = ["sha1/std", "failure/std"]
