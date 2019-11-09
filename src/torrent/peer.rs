@@ -42,7 +42,7 @@ impl Peer {
             let bytes: Bytes = handshake.into();
             io::write_all(stream, bytes)
         }).and_then(|(stream, _)| {
-            Handshake::parse(stream)
+            super::parser::read_handshake(stream)
         }).from_err().and_then(move |(stream, handshake_response)| {
             if handshake_request.validate(&handshake_response) {
                 future::ok(stream)
@@ -74,7 +74,7 @@ impl<R: 'static + AsyncRead> Stream for Connection<R> {
     fn poll(&mut self) -> Poll<Option<Self::Item>, Self::Error> {
         let Self(fut) = self;
         let (read, message) = try_ready!(fut.poll());
-        let new_fut = PeerMessage::parse(read);
+        let new_fut = super::parser::read_message(read);
         self.0 = Box::new(new_fut);
         Ok(Async::Ready(Some(message)))
     }

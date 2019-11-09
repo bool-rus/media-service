@@ -112,7 +112,7 @@ pub fn read(hash: String) -> impl Future<Item=Bytes, Error=Error> {
 
 #[cfg(test)]
 mod test {
-    use storage::CachedSinkError;
+    use super::CachedSinkError;
     use std::io;
     use failure::Fail;
     use failure::Error;

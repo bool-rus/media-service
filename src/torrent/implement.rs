@@ -160,13 +160,3 @@ impl faces::TorrentClient for TorrentClient {
         unimplemented!()
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use actix_web::actix;
-    use actix_web::client;
-    use future::Future;
-
-    #[test]
-    fn test_client() {}
-}
