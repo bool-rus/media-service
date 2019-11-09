@@ -28,3 +28,4 @@ bencoders = "0.1"
 nom_old = {version = "~0.3.0", package="nom"}
 nom = "5.0.1"
 tokio = "*"
+async-std = "0.99.12"

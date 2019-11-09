@@ -8,8 +8,10 @@ use self::nom::{
 };
 use super::message::*;
 use super::HashString;
-use tokio::prelude::*;
 use bytes::{Bytes, BytesMut, BufMut};
+use async_std::io::prelude::ReadExt;
+use actix_web::ws::handshake;
+use std::marker::Unpin;
 
 fn parse_hash_string(i: &[u8]) -> IResult<&[u8], HashString> {
     let (i, slice) = take(20usize)(i)?;
@@ -143,26 +145,23 @@ fn test_parse_port() {
 }
 
 
-pub fn read_message<T: AsyncRead>(read: T) -> impl Future<Item=(T, PeerMessage), Error=tokio::io::Error> {
-    use tokio::io;
-    io::read_exact(read, [0u8;4]).and_then(|(r,buf)| {
-        let (_, size) = be_u32::<()>(&buf).unwrap();
-        let buf = BytesMut::with_capacity(size as usize);
-        io::read_exact(r, buf).map(move |(r,b)|(r,b,size))
-    }).and_then(|(read, buf, size)|{
-        let (_, message) = parse_message(&buf, size).unwrap();
-        Ok((read, message))
-    })
+pub async fn read_message<T: ReadExt + Unpin>(read: &mut T) -> Result<PeerMessage, std::io::Error> {
+    let mut buf = [0u8;4];
+    read.read_exact(&mut buf).await?;
+    let (_, size) = be_u32::<()>(&buf).unwrap();
+    let mut buf = BytesMut::with_capacity(size as usize);
+    read.read_exact(buf.as_mut()).await?;
+    let (_, message) = parse_message(&buf, size).unwrap();
+    Ok(message)
 }
 
-pub fn read_handshake<T: AsyncRead>(read: T) -> impl Future<Item=(T,Handshake), Error=tokio::io::Error> {
-    use tokio::io;
-    io::read_exact(read, [0u8]).and_then(|(r, [protocol_size])|{
-        let buf = BytesMut::with_capacity(super::message::HANDSHAKE_DEFAULT_SIZE - 1 + protocol_size as usize);
-        io::read_exact(r, buf).map(move|(r,b)|(r,b,protocol_size))
-    }).and_then(|(r, buf, protocol_size)|{
-        let (_, handshake) = parse_handshake(&buf, protocol_size).unwrap();
-        Ok((r, handshake))
-    })
+pub async fn read_handshake<T: ReadExt + Unpin>(read: &mut T) -> Result<Handshake, std::io::Error> {
+    let mut buf = [0u8];
+    read.read_exact(&mut buf).await?;
+    let [protocol_size] = buf;
+    let mut buf = BytesMut::with_capacity(super::message::HANDSHAKE_DEFAULT_SIZE - 1 + protocol_size as usize);
+    read.read_exact(buf.as_mut()).await?;
+    let (_, handshake) = parse_handshake(buf.as_ref(), protocol_size).unwrap();
+    Ok(handshake)
 }
 

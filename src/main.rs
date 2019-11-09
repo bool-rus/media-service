@@ -12,6 +12,7 @@ extern crate tokio;
 #[macro_use] extern crate serde_derive;
 #[macro_use] extern crate display_derive;
 extern crate core;
+extern crate async_std;
 
 mod request_utils;
 mod storage;

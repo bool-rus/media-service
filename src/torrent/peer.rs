@@ -1,12 +1,11 @@
-use tokio::net::TcpStream;
-use tokio::io;
 use failure::Fail;
 use super::message::{PeerMessage, Handshake, Bitfield};
+use super::parser;
 use bytes::{Bytes};
 use std::net::SocketAddr;
-
-use tokio::io::Error;
-use tokio::prelude::*;
+use async_std::prelude::*;
+use async_std::net::TcpStream;
+use std::io;
 
 
 #[derive(Debug,Fail)]
@@ -19,7 +18,7 @@ pub enum PeerError {
     Handshake,
 }
 impl From<io::Error> for PeerError {
-    fn from(e: Error) -> Self {
+    fn from(e: io::Error) -> Self {
         PeerError::IoError(e)
     }
 }
@@ -36,28 +35,18 @@ pub struct Peer {
 }
 
 impl Peer {
-    pub fn new(addr: SocketAddr, handshake: Handshake) -> impl Future<Item=Self,Error=PeerError> {
-        let handshake_request = handshake.clone();
-        TcpStream::connect(&addr).and_then( |stream| {
-            let bytes: Bytes = handshake.into();
-            io::write_all(stream, bytes)
-        }).and_then(|(stream, _)| {
-            super::parser::read_handshake(stream)
-        }).from_err().and_then(move |(stream, handshake_response)| {
-            if handshake_request.validate(&handshake_response) {
-                future::ok(stream)
-            } else {
-                future::err(PeerError::Handshake)
-            }
-        }).and_then( |stream| {
-            let bytes: Bytes = PeerMessage::Interested.into();
-            io::write_all(stream, bytes).from_err()
-        }).and_then(|(stream, _)| {
-            Ok(Peer {
-                channel: stream,
-                bitfield: vec![],
-                state: (PeerState::Unchocked, PeerState::Chocked)
-            })
+    pub async fn new(addr: SocketAddr, handshake: Handshake) -> Result<Self, PeerError> {
+        let mut stream = TcpStream::connect(addr).await?;
+        let mut bytes: Bytes = handshake.clone().into();
+        stream.write_all(bytes.as_ref()).await?;
+        let response = parser::read_handshake(&mut stream).await?;
+        handshake.validate(&response);
+        let bytes: Bytes = PeerMessage::Interested.into();
+        stream.write_all(bytes.as_ref()).await?;
+        Ok(Peer {
+            channel: stream,
+            bitfield: vec![],
+            state: (PeerState::Unchocked, PeerState::Chocked)
         })
     }
     pub fn have(&self, piece: u32) -> bool {
@@ -65,6 +54,7 @@ impl Peer {
     }
 }
 
+/*
 struct Connection<R>(Box<Future<Item=(R, PeerMessage), Error=io::Error>>);
 
 impl<R: 'static + AsyncRead> Stream for Connection<R> {
@@ -79,3 +69,4 @@ impl<R: 'static + AsyncRead> Stream for Connection<R> {
         Ok(Async::Ready(Some(message)))
     }
 }
+*/
