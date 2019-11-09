@@ -7,7 +7,6 @@ use async_std::prelude::*;
 use async_std::net::TcpStream;
 use std::io;
 
-
 #[derive(Debug,Fail)]
 pub enum PeerError {
     #[fail(display="{}",0)]
@@ -35,8 +34,7 @@ pub struct Peer {
 }
 
 impl Peer {
-    pub async fn new(addr: SocketAddr, handshake: Handshake) -> Result<Self, PeerError> {
-        let mut stream = TcpStream::connect(addr).await?;
+    pub async fn new(mut stream: TcpStream, handshake: Handshake) -> Result<Self, PeerError> {
         let mut bytes: Bytes = handshake.clone().into();
         stream.write_all(bytes.as_ref()).await?;
         let response = parser::read_handshake(&mut stream).await?;
